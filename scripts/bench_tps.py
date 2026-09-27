@@ -10,7 +10,7 @@ predict well. Use this to validate both perf and correctness after launch.
   Usage: ./bench_tps.py [base_url [model]]
 
 With no args, reads PORT + SERVED_MODEL_NAME from environment variables and
-defaults to `http://localhost:1234/v1` and `qwen3.6-27b`.
+defaults to `http://localhost:1234/v1` and `qwen3.8-27b`.
 """
 
 import json
@@ -26,7 +26,7 @@ if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
     sys.exit(0)
 
 default_port = os.environ.get("PORT", "1234")
-default_model = os.environ.get("SERVED_MODEL_NAME", "qwen3.6-27b")
+default_model = os.environ.get("SERVED_MODEL_NAME", "qwen3.8-27b")
 
 base_url = (
     sys.argv[1] if len(sys.argv) > 1 else f"http://localhost:{default_port}/v1"
@@ -60,9 +60,9 @@ def scrape_spec(metrics_text: str) -> dict:
     Names vary across vLLM versions — we read whatever's present.
     """
     pats = {
-        "drafts": r"^vllm:spec_decode_num_drafts\{[^}]*\}\s+([\d.]+)",
-        "drafted_toks": r"^vllm:spec_decode_num_draft_tokens\{[^}]*\}\s+([\d.]+)",
-        "accepted": r"^vllm:spec_decode_num_accepted_tokens\{[^}]*\}\s+([\d.]+)",
+        "drafts": r"^vllm:spec_decode_num_drafts_total\{[^}]*\}\s+([\d.]+)",
+        "drafted_toks": r"^vllm:spec_decode_num_draft_tokens_total\{[^}]*\}\s+([\d.]+)",
+        "accepted": r"^vllm:spec_decode_num_accepted_tokens_total\{[^}]*\}\s+([\d.]+)",
     }
     out = {}
     for k, p in pats.items():

@@ -1,7 +1,7 @@
 ARG CUDA_VERSION=13.3.0-cudnn-devel-ubuntu24.04
 FROM nvidia/cuda:${CUDA_VERSION}
 
-ARG VLLM_VERSION=0.23.0
+ARG VLLM_VERSION=0.30.0
 ENV VLLM_VERSION=${VLLM_VERSION}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,7 +22,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --ignore-insta
 
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
         "vllm==${VLLM_VERSION}" \
-        "fastapi<0.137" \
+        "fastapi<0.138" \
         hf_transfer \
         huggingface_hub
 
@@ -31,18 +31,17 @@ RUN mkdir -p /data/models /data/logs
 COPY config/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-COPY config/qwen3.6-allanchan339.jinja /usr/local/bin/qwen3.6-allanchan339.jinja
-COPY config/qwen3.6-froggeric.jinja /usr/local/bin/qwen3.6-froggeric.jinja
+COPY config/qwen3.8-froggeric.jinja /usr/local/bin/qwen3.8-froggeric.jinja
 
 COPY scripts/ /usr/local/bin/scripts/
 ENV PATH="/usr/local/bin/scripts:${PATH}"
 
 ENV MODEL_DIR=/data/models
 ENV LOG_DIR=/data/logs
-ENV MODEL_REPO=Lorbus/Qwen3.6-27B-int4-AutoRound
+ENV MODEL_REPO=Frozenlock/Qwen3.8-27B-int4-AutoRound
 ENV PORT=1234
-ENV SERVED_MODEL_NAME=qwen3.6-27b
-ENV MAX_MODEL_LEN=200000
+ENV SERVED_MODEL_NAME=qwen3.8-27b
+ENV MAX_MODEL_LEN=250000
 ENV MAX_NUM_SEQS=3
 ENV MAX_NUM_BATCHED_TOKENS=8192
 ENV NUM_SPECULATIVE_TOKENS=3
@@ -55,10 +54,17 @@ ENV MIN_P=0.0
 ENV PRESENCE_PENALTY=0
 ENV REPETITION_PENALTY=1.0
 ENV REASONING_PARSER=qwen3
-ENV TOOL_CALL_PARSER=qwen3_xml
+ENV TOOL_CALL_PARSER=qwen3_coder
+ENV AUTO_TOOL_CHOICE=1
 ENV CHAT_TEMPLATE=
 ENV CHAT_TEMPLATE_PRESERVE_THINKING=true
 ENV CHAT_TEMPLATE_ENABLE_THINKING=true
+ENV VLLM_ALLREDUCE_USE_FLASHINFER=0
+ENV PER_REQUEST_SPEC_DECODE=none
+ENV PERFORMANCE_MODE=interactivity
+ENV GDN_PREFILL_BACKEND=triton
+ENV KDA_PREFILL_BACKEND=
+ENV KDA_DECODE_BACKEND=flashinfer
 ENV OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=
 ENV OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=
 ENV OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=
