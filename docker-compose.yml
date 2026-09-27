@@ -1,10 +1,10 @@
 services:
-  qwen36:
+  qwen38:
     # Uncomment to use prebuilt image.
-    #image: ghcr.io/tedivm/qwen36-27b-docker:latest
+    #image: ghcr.io/tedivm/qwen-27b-docker:latest
     build:
       context: .
-    container_name: qwen36
+    container_name: qwen38
     runtime: nvidia
     environment:
       - HF_TOKEN=${HF_TOKEN}
@@ -12,8 +12,8 @@ services:
       - HF_XET_HIGH_PERFORMANCE=1
       # Defaults from Dockerfile — uncomment to override:
       # - PORT=1234
-      # - SERVED_MODEL_NAME=qwen36-27b
-      # - MAX_MODEL_LEN=200000
+      # - SERVED_MODEL_NAME=qwen3.8-27b
+      # - MAX_MODEL_LEN=250000
       # - MAX_NUM_SEQS=3
       # - MAX_NUM_BATCHED_TOKENS=8192
       # - GPU_MEMORY_UTIL=0.92
@@ -26,19 +26,26 @@ services:
       # - PRESENCE_PENALTY=0
       # - REPETITION_PENALTY=1.0
       # - REASONING_PARSER=qwen3
-      # - TOOL_CALL_PARSER=qwen3_xml
+      # - TOOL_CALL_PARSER=qwen3_coder
+      # - AUTO_TOOL_CHOICE=1
+      # - VLLM_ALLREDUCE_USE_FLASHINFER=0
+      # - PER_REQUEST_SPEC_DECODE=none
+      # - PERFORMANCE_MODE=interactivity
+      # - GDN_PREFILL_BACKEND=triton
+      # - KDA_PREFILL_BACKEND=
+      # - KDA_DECODE_BACKEND=flashinfer
       # OpenTelemetry — uncomment to enable tracing/metrics/logs:
-      # - OTEL_SERVICE_NAME=vllm-qwen36
+      # - OTEL_SERVICE_NAME=vllm-qwen38
       # - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=grpc://192.168.4.108:4317
       # - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=grpc://192.168.4.108:4317
       # - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=grpc://192.168.4.108:4317
       # - OTEL_EXPORTER_OTLP_INSECURE=true
       # Chat template defaults to the built in. To change uncomment:
-      # - CHAT_TEMPLATE=/usr/local/bin/qwen3.6-allanchan339.jinja
-      # - CHAT_TEMPLATE=/usr/local/bin/qwen3.6-froggeric.jinja
+      # - CHAT_TEMPLATE=/usr/local/bin/qwen3.8-froggeric.jinja
       # - CHAT_TEMPLATE_PRESERVE_THINKING=true
       # - CHAT_TEMPLATE_ENABLE_THINKING=true
 
+    shm_size: 1g
     volumes:
       - ./models:/data/models
       - ./logs:/data/logs

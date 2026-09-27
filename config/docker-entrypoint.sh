@@ -17,10 +17,12 @@ export TENSOR_PARALLEL
 if (( TENSOR_PARALLEL == 1 )); then
     : "${MAX_MODEL_LEN:=48000}"
     : "${GPU_MEMORY_UTIL:=0.95}"
-    echo "Single-GPU mode: MAX_MODEL_LEN=${MAX_MODEL_LEN}, GPU_MEMORY_UTIL=${GPU_MEMORY_UTIL}"
+    : "${MAX_NUM_BATCHED_TOKENS:=4096}"
+    echo "Single-GPU mode: MAX_MODEL_LEN=${MAX_MODEL_LEN}, GPU_MEMORY_UTIL=${GPU_MEMORY_UTIL}, MAX_NUM_BATCHED_TOKENS=${MAX_NUM_BATCHED_TOKENS}"
 fi
 export MAX_MODEL_LEN
 export GPU_MEMORY_UTIL
+export MAX_NUM_BATCHED_TOKENS
 
 # --- Determine visible GPU indices ----------------------------------------
 if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -66,7 +68,7 @@ case "$CMD" in
                 echo "Download complete."
             else
                 echo "ERROR: Model not found at ${MODEL_DIR}." >&2
-                echo "Run 'docker compose run --rm qwen36 download' or set MODEL_DOWNLOAD=1." >&2
+                echo "Run 'docker compose run --rm qwen38 download' or set MODEL_DOWNLOAD=1." >&2
                 exit 1
             fi
         fi
@@ -85,6 +87,22 @@ case "$CMD" in
         # --- Chat template kwargs --------------------------------------------
         CHAT_TEMPLATE_KWARGS_FLAG=(--default-chat-template-kwargs "{\"preserve_thinking\": ${CHAT_TEMPLATE_PRESERVE_THINKING}, \"enable_thinking\": ${CHAT_TEMPLATE_ENABLE_THINKING}}")
 
+        # --- Tool calling ---------------------------------------------------
+        TOOL_CALL_PARSER_FLAG=""
+        [[ -n "${TOOL_CALL_PARSER:-}" ]] && TOOL_CALL_PARSER_FLAG="--tool-call-parser ${TOOL_CALL_PARSER}"
+        AUTO_TOOL_CHOICE_FLAG=""
+        [[ "${AUTO_TOOL_CHOICE:-0}" == "1" ]] && AUTO_TOOL_CHOICE_FLAG="--enable-auto-tool-choice"
+
+        # --- Performance tuning ----------------------------------------------
+        GDN_PREFILL_FLAG=""
+        [[ -n "${GDN_PREFILL_BACKEND:-}" ]] && GDN_PREFILL_FLAG="--gdn-prefill-backend ${GDN_PREFILL_BACKEND}"
+        KDA_PREFILL_FLAG=""
+        [[ -n "${KDA_PREFILL_BACKEND:-}" ]] && KDA_PREFILL_FLAG="--kda-prefill-backend ${KDA_PREFILL_BACKEND}"
+        KDA_DECODE_FLAG=""
+        [[ -n "${KDA_DECODE_BACKEND:-}" ]] && KDA_DECODE_FLAG="--kda-decode-backend ${KDA_DECODE_BACKEND}"
+        PERF_MODE_FLAG=""
+        [[ -n "${PERFORMANCE_MODE:-}" ]] && PERF_MODE_FLAG="--performance-mode ${PERFORMANCE_MODE}"
+
         # --- Optional OTel endpoints ----------------------------------------
         OTEL_TRACES_FLAG=""
         [[ -n "${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}" ]] && OTEL_TRACES_FLAG="--otlp-traces-endpoint ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}"
@@ -93,6 +111,10 @@ case "$CMD" in
         OTEL_LOGS_FLAG=""
         [[ -n "${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:-}" ]] && OTEL_LOGS_FLAG="--otlp-logs-endpoint ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT}"
 
+        # --- Per-request spec decode metrics --------------------------------
+        PER_REQUEST_SPEC_FLAG=""
+        [[ -n "${PER_REQUEST_SPEC_DECODE:-}" ]] && PER_REQUEST_SPEC_FLAG="--per-request-spec-decode-metrics ${PER_REQUEST_SPEC_DECODE}"
+
         echo "Starting vLLM server:"
         echo "  Model              : ${MODEL_DIR}"
         echo "  Served as          : ${SERVED_MODEL_NAME}"
@@ -100,16 +122,22 @@ case "$CMD" in
         echo "  Tensor parallelism : ${TENSOR_PARALLEL}"
         echo "  Max model len      : ${MAX_MODEL_LEN}"
         echo "  Max num seqs       : ${MAX_NUM_SEQS}"
+        echo "  Max batched tokens : ${MAX_NUM_BATCHED_TOKENS}"
         echo "  GPU memory util    : ${GPU_MEMORY_UTIL}"
         echo "  CUDA devices       : ${CUDA_VISIBLE_DEVICES}"
         echo "  Generation config  : ${GEN_CONFIG}"
+        echo "  Tool call parser   : ${TOOL_CALL_PARSER:-none}"
+        echo "  Performance mode   : ${PERFORMANCE_MODE:-balanced}"
+        echo "  GDN prefill        : ${GDN_PREFILL_BACKEND:-auto}"
+        echo "  KDA prefill        : ${KDA_PREFILL_BACKEND:-auto}"
+        echo "  KDA decode         : ${KDA_DECODE_BACKEND:-auto}"
         echo ""
 
         vllm serve "$MODEL_DIR" \
-            --served-model-name "$SERVED_MODEL_NAME" \
+            --served-model-name "$SERVED_MODEL_NAME" qwen_27b \
             --override-generation-config "$GEN_CONFIG" \
             --port "$PORT" \
-            --dtype half \
+            --dtype auto \
             --quantization auto_round \
             --kv-cache-dtype "$KV_CACHE_DTYPE" \
             --enable-prefix-caching \
@@ -120,15 +148,20 @@ case "$CMD" in
             --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
             --gpu-memory-utilization "$GPU_MEMORY_UTIL" \
             --disable-custom-all-reduce \
-            --enable-auto-tool-choice \
-            --tool-call-parser "$TOOL_CALL_PARSER" \
             --trust-remote-code \
+            ${AUTO_TOOL_CHOICE_FLAG} \
+            ${TOOL_CALL_PARSER_FLAG} \
             ${REASONING_PARSER_FLAG} \
             ${CHAT_TEMPLATE_FLAG} \
             "${CHAT_TEMPLATE_KWARGS_FLAG[@]}" \
             ${OTEL_TRACES_FLAG} \
             ${OTEL_METRICS_FLAG} \
             ${OTEL_LOGS_FLAG} \
+            ${PER_REQUEST_SPEC_FLAG} \
+            ${GDN_PREFILL_FLAG} \
+            ${KDA_PREFILL_FLAG} \
+            ${KDA_DECODE_FLAG} \
+            ${PERF_MODE_FLAG} \
             --speculative-config "{\"method\": \"mtp\", \"num_speculative_tokens\": ${NUM_SPECULATIVE_TOKENS}}" \
             2>&1 | tee -a "${LOG_DIR}/vllm.log"
         ;;
